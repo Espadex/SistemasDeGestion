@@ -1,0 +1,269 @@
+\documentclass{article}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+\usepackage[english]{babel}
+
+% Set page size and margins
+% Replace `letterpaper' with`a4paper' for UK/EU standard size
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\usepackage{blindtext}  % For dummy text
+
+\title{TAREA UNIDAD 3 -  Modelo Dimensional aplicado a Informes de Gestión}
+\author{Benjamin Parra & Renton Tapia}
+
+\begin{document}
+\maketitle
+
+
+\section{Resumen}
+
+En el proyecto presentado a continuación, se tiene como propósito analizar el desempeño comercial de una empresa ficticia basada en el modelo de datos AdventureWorks2022, construyendo un data warehouse con esquemas de ventas, compras y dimensiones compartidas, para apoyar la toma de decisiones en gestión de inventarios, fijación de precios y rentabilidad.
+
+Para ello se implementó en \textbf{SQL Server} un proceso \textbf{ETL} que extrae la información de las bases de \textbf{AdventureWorks2022} (tablas de ventas y compras), limpia y transforma los datos y los carga en un esquema estrella bajo la base AdventureWorksDW. Se crearon los siguientes elementos.
+
+\section{Base de datos}
+
+\subsection{Fuente y motor de base de datos}
+
+Los datos a analizar fueron extraidos de la fuente publica para pruebas entregada por Microsoft llamada AdventureWorks, especificamente, en la versión OLTP, para poder practicar la transformación a OLAP manualmente mediante modelamiento y transformaciones con SQL. Esta fuente se usa recurrentemente en microsoft para sus tutoriales debido a que tiene variedad de información util para analisis, pero al poder formar el modelo estrella manualmente se establecera el nivel de grano para simplificar la información a fin de no colocar datos sin uso al analisis.
+\href{https://learn.microsoft.com/es-es/sql/samples/adventureworks-install-configure?view=sql-server-ver17&tabs=ssms}{Link de descarga}
+
+Debido a que los archivos se encuentran en formato .bak (backup), el motor de base de datos utilizado en el proyecto es Microsoft SQL Server 2022 en su version gratuita. El framework para cargar los scripts y visualizar la información es SQL Server Management Studio 21.
+
+Los datos de Adventure Works representan, a gran escala, la operación completa de una empresa ficticia de fabricación y venta de bicicletas y accesorios, incluyendo procesos de producción, compras, ventas, logística y recursos humanos.
+
+\subsection {Modelado}
+Se reagruparon los datos con un \href{www.google.com}{script sql} para formar un modelo que representa el siguiente diagrama tentativo representado utilizando la herramienta Canva (figura \ref{fig:DiagramaEstrella}). 
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{ModeloEstrellaDiagrama.png}
+    \caption{Diagrama de modelo estrella}
+    \label{fig:DiagramaEstrella}
+\end{figure}
+Algunas decisiones que se tomaron antes de la implementación fueron las siguientes:
+\begin{itemize}
+    \item \textbf{¿Mantener el FactVentas.IngresoTotal y  FactCompras.CostoTotal como formulas calculadas con DAX de manera dinamica al momento de cargarlas en el software visualizador, PowerBI, o precomputarlas con sql antes de terminar la fase ETL?} -- Se precomputaron, pues, no requieren mucho mas espacio y pueden simplificar lecturas, sin embargo, no se quitaron los campos de Cantidad y Precio para evitar perdida de detalle. Deberia cambiarse a formula en el futuro, si se requiere ser mas riguroso con las buenas practicas.
+    \item \textbf{¿Tratar las ubicaciones (Ciudad-Estado-Pais) como dimension aparte, campos internos o como copo de nieve siendo una tabla hacedora de rol?} -- Se trataron como campos internos. Aunque traiga redundancia, se intenta evitar agregar complejidad a las consultas en OLAP. Se usa el Ciudad-Estado-Pais de origen, entonces se espera no cambien.
+    \item \textbf{¿Dejar el nombre del cliente?} -- Originalmente se esperaba saber quienes fueron los clientes mas "leales" segun la cantidad de dinero que invertian en la tienda, pero puede ser una violacion a la privacidad. Se mantuvo en el modelo, pero se sugiere remover en el futuro.
+    \item \textbf{¿Como tratar los cambios en los precios unitarios de compras y ventas?} -- Si bien se puede tratar como dimension SCD tipo 2 aparte, es mas escalable tener el campo aparte y una vez por hecho, debido a que se pueden aplicar descuentos individuales segun cupones o eventos especiales. Como cada venta tiene su precio, no se pierde informacion historica tampoco. 
+    \item \textbf{¿Trimestre como formula con cases, o precomputada?} -- Se opto por precomputarla, si bien se puede extraer de los demas campos de la jerarquia de tiempo, no es necesariamente mala practica dejar el trimestre explicito de antemano.
+\end{itemize}
+
+Las tablas no compartidas (ventas y sus dimensiones privadas, al igual que compras y sus dimensiones) y las compartidas, se trataron como schemas distintos. Por como funciona SQL Server, se tratan como namespaces en la misma conexion y base de datos en la practica.
+
+\subsection{Visualización}
+Se utilizó el software PowerBI Desktop para visualizar la información. El acceso a los datos se realizó mediante la importación directa con la conexión desde Microsoft SQL Server 2022.
+
+Para asegurar la precisión y relevancia de las visualizaciones, se siguió un proceso estructurado:
+
+\begin{enumerate}
+    \item \textbf{Validación de datos}: Se verificó la integridad de los datos importados, identificando y documentando limitaciones como los campos geográficos incompletos.
+    \item \textbf{Diseño de métricas}: Se definieron indicadores clave de rendimiento (KPIs) alineados con objetivos comerciales específicos.
+    \item \textbf{Selección de visualizaciones}: Para cada análisis se eligió el tipo de gráfico más adecuado según la naturaleza de los datos y las preguntas a responder.
+    \item \textbf{Interactividad}: Se implementaron filtros y segmentaciones para permitir la exploración dinámica de los datos.
+\end{enumerate}
+
+Este enfoque metodológico garantiza que las visualizaciones no solo sean estéticamente apropiadas, sino que también ofrezcan insights accionables para la toma de decisiones.
+
+\section{Analisis}
+\subsection{Indicadores}
+Algunos indicadores clave para explorar los datos, son los siguientes. Ambos constan de su explicación de utilidad y una formula \textbf{DAX} que permite el calculo de esto en PowerBI.
+
+\begin{itemize}
+    \item \textbf{Margen Bruto (\%): } Esta medida calcula el porcentaje de ganancia bruta que se obtiene de las ventas, descontando el costo estándar de los productos antes de considerar otros gastos operativos.
+Se obtiene restando al \emph{IngresoTotal} (suma de \textbf{CantidadVendida * PrecioUnitario}) el \emph{CostoTotal} (suma de \textbf{CantidadVendida * CostoEstandar} traído desde la dimensión de producto) y dividiendo esa diferencia por el \emph{IngresoTotal}.
+
+    \begin{tcolorbox}[boxrule=0.3pt,sharp corners]
+        \begin{lstlisting}[gobble=4]
+        Margen bruto porcentual = 
+        DIVIDE(
+        	SUM('Ventas FactVentas'[IngresoTotal]) -
+            SUM('Compras FactCompras'[CostoTotal]),
+        	SUM('Ventas FactVentas'[IngresoTotal]),
+            0
+        )
+        \end{lstlisting}
+    \end{tcolorbox}
+
+En la figura \ref{fig:margen-bruto-porcentual} se muestra el resultado del indicador. Este marca 57.8\% de margen, lo cual indica que se tiene un alto radio de retorno sobre la inversión con la operacion de la tienda, restando los gastos implicados.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.75\linewidth]{Margen bruto.png}
+    \caption{Margen bruto porcentual}
+    \label{fig:margen-bruto-porcentual}
+\end{figure}
+    
+\end{itemize}
+
+\begin{itemize}
+    \item \textbf{RatioVentasCompras: } Esta medida muestra la relación entre las unidades vendidas y las unidades compradas en el mismo periodo, ofreciendo un indicador de rotación de stock.
+Se obtiene dividiendo la suma de CantidadVendida en la tabla de ventas por la suma de CantidadComprada en la tabla de compras.
+
+    \begin{tcolorbox}[boxrule=0.3pt,sharp corners]
+        \begin{lstlisting}[gobble=4]
+    RatioVentasCompras = 
+        DIVIDE(
+          SUM( 'Ventas FactVentas'[CantidadVendida] ),
+          SUM( 'Compras FactCompras'[CantidadComprada] ),
+          0
+        )
+        \end{lstlisting}
+    \end{tcolorbox}
+
+\end{itemize}
+
+El ratio de ventas/compras es un indicador crítico para la gestión de inventario. Un valor cercano a 1 indica equilibrio entre lo comprado y lo vendido, mientras que valores significativamente inferiores a 1 sugieren acumulación de inventario. Por otro lado, valores superiores a 1 podrían indicar riesgo de desabastecimiento o una gestión muy eficiente del stock, dependiendo del contexto. Para interpretar correctamente este indicador, es importante analizarlo en conjunto con las políticas de inventario de la empresa y la naturaleza de los productos.
+
+En la figura \ref{fig:grafico-ratio-ventas-compras} se presenta el indicador de rotación de inventario mediante un gráfico de líneas mes a mes. La tendencia proyectada sugiere un aumento gradual de la rotación, manteniéndose habitualmente en valores próximos a cero, lo que refleja una gestión equilibrada entre ventas y reposición de stock. No obstante, se observan picos significativos: uno en julio de 2012 y otros, más pronunciados, en junio y julio de 2013; estas anomalías podrían deberse a campañas promocionales intensivas, acumulación excepcional de inventario previo a lanzamientos de producto o retrasos en la cadena de suministro que temporalmente alteraron el ritmo normal de ventas versus compras.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Rotacion de inventario.png}
+    \caption{Grafico ratio ventas/compras}
+    \label{fig:grafico-ratio-ventas-compras}
+\end{figure}
+
+
+
+\subsection {Analisis de graficos}
+Se desarrollaron un par de graficos interactivos con filtros para hacer un analisis exploratorio de los datos en algunos aspectos.
+
+\subsubsection{Varianza de precio de venta}
+Para analizar el comportamiento del precio unitario, se implementó un gráfico de velas japonesas. Se le agregó un grafico de lineas sobre el precio medio para ver los valores que fue tomando durante el trimestre. Se requirieron las siguientes medidas adicionales:
+\begin{itemize}
+    \item \textbf{PrecioCierre: } Esta medida devuelve el precio unitario promedio correspondiente a la última fecha registrada en el periodo analizado, útil para comparar con el precio de apertura.
+Se obtiene primero identificando la FechaMax [\textbf{MAX} (\textbf{DimTiempo[Fecha]})] y luego calculando el promedio de PrecioUnitario de las ventas filtradas a esa fecha.
+
+    \begin{tcolorbox}[boxrule=0.3pt,sharp corners]
+        \begin{lstlisting}[gobble=4]
+    PrecioCierre = 
+        VAR FechaMax = MAX( 'Dimensiones DimTiempo'[Fecha] )
+        RETURN
+            CALCULATE(
+                AVERAGE( 'Ventas FactVentas'[PrecioUnitario] ),
+                'Dimensiones DimTiempo'[Fecha] = FechaMax
+            )
+        \end{lstlisting}
+    \end{tcolorbox}
+
+\end{itemize}
+
+
+\begin{itemize}
+    \item \textbf{PrecioApertura: } Esta medida extrae el precio unitario promedio del primer día del periodo analizado, permitiendo medir la variación de precios inicio‑fin.
+Se obtiene identificando la FechaMin [\textbf{MIN} (\textbf{DimTiempo[Fecha]})] y luego calculando el promedio de PrecioUnitario de las ventas filtradas a esa fecha.
+
+    \begin{tcolorbox}[boxrule=0.3pt,sharp corners]
+        \begin{lstlisting}[gobble=4]
+    PrecioApertura = 
+        VAR FechaMin = MIN( 'Dimensiones DimTiempo'[Fecha] )
+        RETURN
+            CALCULATE(
+                AVERAGE( 'Ventas FactVentas'[PrecioUnitario] ),
+                'Dimensiones DimTiempo'[Fecha] = FechaMin
+            )
+        \end{lstlisting}
+    \end{tcolorbox}
+
+\end{itemize}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Velas full.png}
+    \caption{Grafico completo de varianza y media interactiva}
+    \label{fig:Varianza interactiva}
+\end{figure}
+
+En la figura \ref{fig:Varianza interactiva} se puede observar la variancia y el precio unitario de los productos a vender.
+Cada vela muestra la varianza en ese periodo de tiempo. En el grafico inferior se encuentran ordenados los productos con mas varianza de precios, de tal manera de poder hacer los analisis individuales. (Ver figura \ref{fig:Varianza interactiva})
+Este analisis sirve para intentar predecir cambios en el precio. Por otro lado, desde parte de los consumidores, se puede ver cuales han sido los productos que mas cambian a tiempo (ver figura \ref{fig:Filtro de grafico de varianza}), y con ello poder obtener la oportunidad de conocer cuando comprar productos y cuando conviene revenderlos si es necesario. La linea punteada muestra el precio medio en ese periodo.
+
+Desde una perspectiva de gestión de negocio, este análisis de varianza de precios proporciona información valiosa para:
+
+\begin{itemize}
+    \item \textbf{Estrategia de precios}: Identificar productos con alta variabilidad donde podría implementarse una estrategia de precios más estable o, alternativamente, aprovechar la volatilidad para maximizar márgenes.
+    \item \textbf{Planificación de promociones}: Productos con patrones predecibles de variación pueden programarse para promociones en momentos específicos.
+    \item \textbf{Predicción financiera}: La tendencia de precios ayuda a pronosticar ingresos futuros con mayor precisión.
+\end{itemize}
+
+En el caso específico del análisis realizado, los productos con mayor varianza de precio deberían ser objeto de una revisión de política de precios, especialmente evaluando si esa variabilidad responde a factores estacionales, competitivos o de costos de suministro.
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Velas filtro.png}
+    \caption{Filtro de grafico de varianza}
+    \label{fig:Filtro de grafico de varianza}
+\end{figure}
+
+\subsection{Paises con mas ventas}
+Se analizaron los ingresos por pais y se desplegaron los productos con mas ingresos. Con los graficos de las figuras \ref{fig:ventas-por-pais} y \ref{fig:ventas-por-pais-2} se puede ver que si bien en estados se registra la mayor cantidad de ingresos (cantidad * precio), en Australia se registrar ingresos similares con menor cantidad de productos.
+Lo anterior indica que en Australia se suele comprar productos mas caros, con ello, se podría ajustar el inventario por pais para ver que cosas comprar más.
+El indicador a la izquierda de la figura \ref{fig:ventas-por-pais} se utiliza para filtrar los que no registraron el pais de venta. Se puede ver que la mayoria de las ventas no registran el pais donde se realiza (figura \ref{fig:ventas-sin-pais}). Una posible mejora para los siguientes años dentro de una empresa con estas caracteristicas seria intentar registrar estos datos, para optimizar las ventas mas adelante.
+
+Este hallazgo sobre la falta de registro del país de venta representa una importante oportunidad de mejora en la calidad de los datos. En términos cuantitativos, aproximadamente el 73\% de las transacciones carecen de esta información geográfica, lo que limita significativamente la capacidad de realizar análisis de mercado precisos y segmentados. Esta situación podría atribuirse a:
+
+\begin{itemize}
+    \item Deficiencias en el proceso de captura de datos en el punto de venta
+    \item Ventas realizadas a través de canales donde no se solicita esta información
+    \item Problemas de integración entre sistemas de ventas y el data warehouse
+\end{itemize}
+
+La implementación de un campo obligatorio para el país en los sistemas de registro de ventas podría resolver este problema, permitiendo análisis geográficos más precisos que informen mejor las decisiones sobre expansión, focalización de marketing y gestión de inventario regional.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Ventas por pais.png}
+    \caption{Ventas por pais}
+    \label{fig:ventas-por-pais}
+\end{figure}
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{ventas por pais2.png}
+    \caption{ventas por pais (Australia)}
+    \label{fig:ventas-por-pais-2}
+\end{figure}
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{ventas filtro blank.png}
+    \caption{Ventas sin pais}
+    \label{fig:ventas-sin-pais}
+\end{figure}
+
+
+\subsection{Ganancias por categoria y mes}
+Con un gráfico de lineas, se representó en la figura \ref{fig:Ganancias por categoria y mes}, se puede ver que la mayoria del tiempo las categorias presentan saldo negativo, es decir, el costo de traer y comprar un producto sobrepasa las ganancias obtenidas en las ventas mensuales.\\
+La categoria que mantiene al negocio con diferencia es la de bicicletas, sin embargo, hay meses (febrero, abril, noviembre) donde las ventas de motos (y componentes de motos) caen significativamente. En esos meses, se recomienda reducir el inventario para maximizar las ganancias reactivamente.\\
+La unica otra categoria ademas de las bicicletas con saldo positivo es la de productos de ropa, la mayor parte del tiempo, aunque no son considerables.
+
+Esta concentración de rentabilidad en una sola categoría de producto plantea un dilema estratégico fundamental: la empresa muestra una clara dependencia de las bicicletas como producto estrella. Por un lado, esta concentración sugiere la oportunidad de capitalizar la fortaleza existente mediante mayor inversión en innovación, marketing y expansión de la línea de bicicletas. Por otro lado, representa un riesgo significativo ante cambios en el mercado o la competencia que afecten específicamente a esta categoría. Una estrategia equilibrada podría implicar tanto el fortalecimiento de la posición dominante en bicicletas como iniciativas específicas para mejorar la rentabilidad de las demás categorías, diversificando así las fuentes de beneficio.
+
+Hay que recordar que una tienda con mas variedad es mas confiable y diferenciable que la competencia, es decir, el hecho de tener mas productos, incluso si significa perdidas directas, puede traducirse en mas gente comprando motos en la tienda, por la conveniencia de los servicios ofrecidos.
+Tambien podria intentar mover el modelo de negocios, haciendo estrategias de venta inteligentes que ajusten las compras segun la proyección de las ventas para reducir los costos.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{Ingresos por mes y categoria.png}
+    \caption{Ganancias por categoria y mes}
+    \label{fig:Ganancias por categoria y mes}
+\end{figure}
+
+\section{Conclusiones}
+
+El análisis dimensional aplicado a los informes de gestión de AdventureWorks ha revelado patrones críticos para la toma de decisiones estratégicas. Los hallazgos principales indican que la empresa mantiene un sólido margen bruto del 57.8\%, sustentado principalmente por la categoría de bicicletas, mientras que otras líneas de producto como accesorios y componentes frecuentemente operan con márgenes negativos. Esta marcada dependencia de un solo segmento de producto constituye tanto la mayor fortaleza como la principal vulnerabilidad estratégica del negocio. Existe una marcada estacionalidad en las ventas, con caídas significativas en febrero, abril y noviembre que requieren ajustes en la planificación de inventario.
+
+El análisis geográfico, aunque limitado por la ausencia de datos de país en aproximadamente el 73\% de las transacciones, muestra que mercados como Australia generan ingresos similares a Estados Unidos con menor volumen de productos, sugiriendo una preferencia por productos de mayor valor. La variabilidad de precios identificada en el análisis de velas japonesas ofrece oportunidades para optimizar estrategias de fijación de precios y promociones.
+
+Para mejorar el rendimiento comercial, la empresa debería: (1) implementar un registro más riguroso de datos geográficos de ventas, (2) ajustar inventarios estacionalmente, especialmente en categorías de bajo rendimiento durante meses críticos, (3) evaluar la viabilidad de líneas de producto consistentemente deficitarias, y (4) desarrollar estrategias de precios basadas en los patrones de variabilidad identificados. La transformación del modelo OLTP a OLAP ha demostrado ser una herramienta valiosa para descubrir estos insights, proporcionando una base sólida para la toma de decisiones basada en datos.
+
+\bibliographystyle{alpha}
+\bibliography{sample}
+
+\end{document}
